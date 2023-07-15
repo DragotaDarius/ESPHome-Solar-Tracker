@@ -1,0 +1,217 @@
+esphome:
+  name: "tracker"
+  includes:
+    # - CustomGyro.h
+    - CustomTracker2.h
+  on_loop:
+    then:
+    - if:
+        condition:
+          wifi.connected:
+        then:
+          - lambda: |-
+              id(connected) = true;
+
+
+# external_components:
+#   - source: github://carlosgs/esphome@patch-39
+#     components: [mpu6050]
+
+esp8266:
+  board: nodemcu
+
+# Enable logging
+logger:
+  level: INFO
+
+# Enable Home Assistant API
+api:
+
+ota:
+
+globals:
+  - id: connected
+    type: bool
+    restore_value: no
+    initial_value: "false"
+
+number:
+  - platform: template
+    name: "Tracker State"
+    id: trackerState
+    optimistic: true
+    min_value: 0
+    max_value: 10
+    step: 1 
+
+# Example configuration entry
+switch:
+  - platform: restart
+    name: "Solar Tracker ESP"
+
+  - platform: gpio
+    pin: D5
+    inverted: True
+    name: "Rasarit"
+    id: relay_rasarit
+    interlock: [relay_apus]
+
+  - platform: gpio
+    pin: D6
+    name: "Relay #2"
+    id: relay_apus
+    interlock: [relay_rasarit]
+    inverted: True
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Esphome-Web-Daf7Eb"
+    password: "BoTIZPu4x71W"
+
+captive_portal:
+
+# Example configuration entry for ESP32
+i2c:
+  sda: D2 #D2
+  scl: D1 #D1
+  scan: true
+  # id: bus_a
+
+# # Example configuration entry
+# sensor:
+  
+#   - platform: mpu6050
+#     update_interval: 1s
+#     address: 0x68
+#     accel_x:
+#       name: "MPU6050 Accel X"
+#     accel_y:
+#       name: "MPU6050 Accel Y"
+#     accel_z:
+#       name: "MPU6050 Accel z"
+#     gyro_x:
+#       name: "MPU6050 Gyro X"
+#     gyro_y:
+#       name: "MPU6050 Gyro Y"
+#     gyro_z:
+#       name: "MPU6050 Gyro z"
+#     temperature:
+#       name: "MPU6050 Temperature"
+
+# Example configuration entry
+sun:
+  latitude: !secret local_latitude
+  longitude: !secret local_longitude
+
+# At least one time source is required
+time:
+  - platform: homeassistant
+
+
+
+sensor:
+  - platform: sun
+    name: Sun Elevation
+    type: elevation
+  - platform: sun
+    name: Sun Azimuth
+    type: azimuth
+  - platform: homeassistant
+    name: Next Noon
+    entity_id: sun.sun
+    id: sun_next_noon
+    attribute: next_noon
+
+  - platform: custom
+    lambda: |-
+      auto tracker = new SolarTracker();
+      App.register_component(tracker);
+      return {};
+    sensors:
+
+
+  - platform: mpu6050
+    address: 0x68
+    accel_x:
+      id: accel_x
+      name: "MPU6050 Accel X"
+      state_class: measurement
+      filters:
+       - sliding_window_moving_average:
+          window_size: 10
+          send_every: 5
+    accel_y:
+      id: accel_y
+      name: "MPU6050 Accel Y"
+      state_class: measurement
+      filters:
+       - sliding_window_moving_average:
+          window_size: 10
+          send_every: 5
+    accel_z:
+      id: accel_z
+      name: "MPU6050 Accel z"
+      state_class: measurement
+      filters:
+       - sliding_window_moving_average:
+          window_size: 10
+          send_every: 5
+    gyro_x:
+      name: "MPU6050 Gyro X"
+      state_class: measurement
+      id: gyro_x
+      filters:
+       - sliding_window_moving_average:
+          window_size: 10
+          send_every: 5
+    gyro_y:
+      name: "MPU6050 Gyro Y"
+      state_class: measurement
+      id: gyro_y
+      filters:
+       - sliding_window_moving_average:
+          window_size: 10
+          send_every: 5
+    gyro_z:
+      name: "MPU6050 Gyro z"
+      state_class: measurement
+      id: gyro_z
+      filters:
+       - sliding_window_moving_average:
+          window_size: 10
+          send_every: 5
+    temperature:
+      name: "MPU6050 Temperature"
+      state_class: measurement
+      filters:
+       - sliding_window_moving_average:
+          window_size: 10
+          send_every: 5
+    update_interval: 250ms
+
+  - platform: template
+    id: roll
+    name: roll
+    state_class: measurement
+    type: float
+    accuracy_decimals: 2
+    lambda: |-
+      return  (atan( id(accel_y).state / sqrt( pow( id(accel_x).state , 2) + pow( id(accel_z).state , 2) ) ) * 180 / PI) ;
+    update_interval: 500ms
+
+  - platform: template
+    id: pitch
+    name: pitch
+    state_class: measurement
+    accuracy_decimals: 2
+    lambda: |-
+      return  (atan(-1 * id(accel_x).state / sqrt(pow(id(accel_y).state, 2) + pow(id(accel_z).state, 2))) * 180 / PI);
+    update_interval: 500ms
+
+
+
+    
